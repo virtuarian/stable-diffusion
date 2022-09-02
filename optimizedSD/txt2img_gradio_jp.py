@@ -27,6 +27,18 @@ import mimetypes
 mimetypes.init()
 mimetypes.add_type("application/javascript", ".js")
 
+from googletrans import Translator
+translator = Translator()
+translator = Translator(service_urls=[
+      'translate.google.com',
+      'translate.google.co.jp',
+    ])
+
+def translate(prompt):
+    result = translator.translate(prompt, dest='en').text
+    return result
+    
+
 
 def chunk(it, size):
     it = iter(it)
@@ -225,26 +237,65 @@ def generate(
     return Image.fromarray(grid.astype(np.uint8)), txt
 
 
-demo = gr.Interface(
-    fn=generate,
-    inputs=[
-        "text",
-        gr.Slider(1, 1000, value=50),
-        gr.Slider(1, 100, step=1),
-        gr.Slider(1, 100, step=1),
-        gr.Slider(64, 4096, value=512, step=64),
-        gr.Slider(64, 4096, value=512, step=64),
-        gr.Slider(0, 50, value=7.5, step=0.1),
-        gr.Slider(0, 1, step=0.01),
-        gr.Slider(1, 2, value=1, step=1),
-        gr.Text(value="cuda"),
-        "text",
-        gr.Text(value="outputs/txt2img-samples"),
-        gr.Radio(["png", "jpg"], value='png'),
-        "checkbox",
-        "checkbox",
-        gr.Radio(["ddim", "plms"], value="plms"),
-    ],
-    outputs=["image", "text"],
-)
-demo.launch()
+
+with gr.Blocks() as demo:
+   
+    with gr.Tabs():
+        with gr.TabItem("Main"):
+            with gr.Row():
+                txt_in  = gr.Textbox(label="翻訳したい文章", lines=1)
+                prompt = gr.Textbox(label="prompt", lines=1,interactive=True)
+            with gr.Row():
+                btn_trans = gr.Button(value="翻訳")
+                btn_trans.click(translate, inputs=[txt_in], outputs=[prompt])
+                btn_run = gr.Button(value="画像生成")
+
+            with gr.Row():
+                #画像出力先
+                output_image = gr.Image()
+                result_log = gr.Textbox(label="result")
+
+        with gr.TabItem("Option"):
+            ddim_steps = gr.Slider(minimum=1,  maximum=1000, step=1, value=50, label="ddim_steps（画像の精度）",interactive=True)
+            n_iter     = gr.Slider(minimum=1,  maximum=100,  step=1, label="n_iter（生成処理の繰り返し回数）",interactive=True)
+            batch_size = gr.Slider(minimum=1,  maximum=100,  step=1, label="batch_size（生成する画像の枚数）",interactive=True)
+            Height     = gr.Slider(minimum=64, maximum=4096, value=512, step=64, label="Height（画像の高さ）",interactive=True)
+            Width      = gr.Slider(minimum=64, maximum=4096, value=512, step=64, label="Width（画像の幅）",interactive=True)
+            scale      = gr.Slider(minimum=0,  maximum=50, value=7.5, step=0.1, label="scale（promptの重視）",interactive=True)
+            ddim_eta   = gr.Slider(minimum=0,  maximum=1, step=0.01, label="ddim_eta",interactive=True)
+            unet_bs    = gr.Slider(minimum=1,  maximum=2, value=1, step=1, label="unet_bs（unet モデルのバッチ サイズ）",interactive=True)
+            device     = gr.Textbox(value="cuda", label="device")
+            seed       = gr.Textbox(value="", label="seed（乱数シード）")
+            outdir     = gr.Textbox(value="outputs/txt2img-samples", label="outdir（画像の出力先）")
+            img_format = gr.Radio(["png", "jpg"], value='png', label="img_format（画像フォーマット）",interactive=True)
+            turbo      = gr.Checkbox(label="turbo（推論速度の向上）")
+            full_precision = gr.Checkbox(label="full_precision（混合精度）")
+            sampler    = gr.Radio(["ddim", "plms"], value="plms", label="（拡散サンプリング法）",interactive=True)
+
+
+    btn_run.click(
+        generate,
+        inputs=[
+            prompt,
+            ddim_steps,
+            n_iter,
+            batch_size,
+            Height,
+            Width,
+            scale,
+            ddim_eta,
+            unet_bs,
+            device,
+            seed,
+            outdir,
+            img_format,
+            turbo,
+            full_precision,
+            sampler,
+        ],
+        outputs=[output_image,result_log]
+    )
+
+
+if __name__ == "__main__":
+    demo.launch()
